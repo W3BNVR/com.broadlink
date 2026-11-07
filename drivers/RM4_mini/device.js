@@ -161,6 +161,8 @@ class RM4miniDevice extends BroadlinkDevice {
   }
 
   _stopOperations() {
+    if (this._climateTimer) this.homey.clearInterval(this._climateTimer);
+    this._climateTimer = null;
     this._operationsStopped = true;
     this._operationGeneration = (this._operationGeneration || 0) + 1;
     this._cancelIRLearning();
@@ -276,6 +278,12 @@ class RM4miniDevice extends BroadlinkDevice {
     if (this.homey?.app && typeof this.homey.app.registerRfDevice === "function") {
       this.homey.app.registerRfDevice(this);
     }
+    for (const capability of ["measure_temperature", "measure_humidity"]) {
+      if (!this.hasCapability(capability)) await this.addCapability(capability);
+      if (!isActive()) return false;
+    }
+    this._climateTimer = this.homey.setInterval(() => this.pollTempHumidity(), 60000);
+    void this.pollTempHumidity();
     // Ensure the learnIRcmd capability exists and set its initial value
     if (!this.hasCapability("learnIRcmd")) {
       await this.addCapability("learnIRcmd");
@@ -546,6 +554,31 @@ class RM4miniDevice extends BroadlinkDevice {
     }
 
     this._utils.debugLog(this, "Settings successfully updated.");
+  }
+
+  async pollTempHumidity() {
+    if (this._operationsStopped || this.learn || this._climatePolling) return;
+    this._climatePolling = true;
+    const communication = this._communicate;
+    const generation = this._operationGeneration;
+    try {
+      const { temperature, humidity } = await this._withAuthentication(
+        () => communication.checkTempHumidity_rm4pro()
+      );
+      this._assertConnection(communication, generation);
+      const temp = temperature[0] + temperature[1] / 100;
+      const rh = humidity[0] + humidity[1] / 100;
+      if (!Number.isFinite(temp) || !Number.isFinite(rh) || rh < 0 || rh > 100) {
+        throw new Error("Invalid HTS2 climate response");
+      }
+      await this.setCapabilityValue("measure_temperature", temp);
+      this._assertConnection(communication, generation);
+      await this.setCapabilityValue("measure_humidity", rh);
+    } catch (error) {
+      this._utils.debugLog(this, `RM4 Mini HTS2 read failed: ${error.message}`);
+    } finally {
+      this._climatePolling = false;
+    }
   }
 
   async onUninit() {

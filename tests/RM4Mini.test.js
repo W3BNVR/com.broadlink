@@ -29,6 +29,8 @@ function harness() {
     __: (key) => key,
     setTimeout: (fn, ms) => { calls.push(["delay", ms]); if (ms !== 5000) queueMicrotask(fn); return 1; },
     clearTimeout: () => calls.push(["clear timeout"]),
+    setInterval: () => 1,
+    clearInterval: () => {},
   };
   const comm = new Communicate();
   comm.configure = (options) => {
@@ -498,4 +500,35 @@ test("RM4 mini learning cancellation stops the physical read's pending transport
   await device.onCapabilityLearnIR(false); await device._drainOperations();
   t.mock.timers.tick(60000); await flushLearning();
   assert.equal(sends, 1); assert.equal(device.learn, false);
+});
+
+
+test("RM4 Mini HTS2 publishes climate values and retries an expired session", async () => {
+  const { device, comm, calls } = harness();
+  let reads = 0;
+  comm.checkTempHumidity_rm4pro = async () => {
+    if (++reads === 1) throw Object.assign(new Error("expired"), { code: -7 });
+    return { temperature: [21, 35], humidity: [48, 75] };
+  };
+  device.authenticateDevice = async () => calls.push(["authenticate"]);
+  device.setCapabilityValue = async (name, value) => calls.push([name, value]);
+  await device.pollTempHumidity();
+  assert.equal(reads, 2);
+  assert.ok(calls.some(c => c[0] === "authenticate"));
+  assert.ok(calls.some(c => c[0] === "measure_temperature" && c[1] === 21.35));
+  assert.ok(calls.some(c => c[0] === "measure_humidity" && c[1] === 48.75));
+});
+
+test("RM4 Mini HTS2 skips learning and preserves readings on sensor failure", async () => {
+  const { device, comm } = harness();
+  let reads = 0;
+  comm.checkTempHumidity_rm4pro = async () => { reads++; throw new Error("sensor absent"); };
+  device.setCapabilityValue = async () => assert.fail("must preserve readings");
+  device.learn = true;
+  await device.pollTempHumidity();
+  assert.equal(reads, 0);
+  device.learn = false;
+  await device.pollTempHumidity();
+  assert.equal(reads, 1);
+  assert.equal(device._climatePolling, false);
 });

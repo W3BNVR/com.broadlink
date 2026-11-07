@@ -12,7 +12,9 @@
   "capabilities": [
     "learnIRcmd",
     "learningState",
-    "device_lock_state"
+    "device_lock_state",
+    "measure_temperature",
+    "measure_humidity"
   ],
   "pair": [
     {
