@@ -278,6 +278,7 @@ class RM4miniDevice extends BroadlinkDevice {
     if (this.homey?.app && typeof this.homey.app.registerRfDevice === "function") {
       this.homey.app.registerRfDevice(this);
     }
+    if (this.getClass() !== "sensor") await this.setClass("sensor");
     for (const capability of ["measure_temperature", "measure_humidity"]) {
       if (!this.hasCapability(capability)) await this.addCapability(capability);
       if (!isActive()) return false;

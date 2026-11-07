@@ -47,6 +47,7 @@ function harness() {
     homey,
     _communicate: comm,
     _utils: comm._utils,
+    getClass: () => "sensor",
     getData: () => ({ devtype: "25276", mac: "000000000000" }),
     setSettings: async (settings) => calls.push(["settings", settings]),
     log: (...message) => calls.push(["log", ...message]),

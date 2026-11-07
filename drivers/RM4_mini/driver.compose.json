@@ -8,7 +8,7 @@
     "large": ".{{driverAssetsPath}}/images/large.jpg",
     "small": ".{{driverAssetsPath}}/images/small.jpg"
   },
-  "class": "other",
+  "class": "sensor",
   "capabilities": [
     "learnIRcmd",
     "learningState",
